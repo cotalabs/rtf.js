@@ -7947,12 +7947,321 @@ var __extends$2 = (undefined && undefined.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+var RenderElement = /** @class */ (function () {
+    function RenderElement(doc, type, element) {
+        this._doc = doc;
+        this._type = type;
+        this._element = element;
+        this._pap = null;
+        this._chp = null;
+    }
+    RenderElement.prototype.getElement = function () {
+        return this._element;
+    };
+    RenderElement.prototype.getContent = function () {
+        return this._element;
+    };
+    RenderElement.prototype.updateProps = function (pap, chp) {
+        this._pap = pap;
+        this._chp = chp;
+    };
+    RenderElement.prototype.finalize = function () {
+        Helper.log("[rtf] finalizing element of type " + this._type);
+        return this._element;
+    };
+    return RenderElement;
+}());
+var RenderTextElement = /** @class */ (function (_super) {
+    __extends$2(RenderTextElement, _super);
+    function RenderTextElement(doc, text, chp) {
+        var _this = _super.call(this, doc, "text", $("<span>").text(text)) || this;
+        _this._chp = chp;
+        return _this;
+    }
+    RenderTextElement.prototype.applyProps = function () {
+        var chp = this._chp;
+        var el = this.getElement();
+        if (chp.bold) {
+            el.css("font-weight", "bold");
+        }
+        if (chp.italic) {
+            el.css("font-style", "italic");
+        }
+        if (chp.hasOwnProperty("fontfamily") && this._doc._fonts[chp.fontfamily]) {
+            var fontFamily = this._doc._fonts[chp.fontfamily].fontname.replace(";", "");
+            if (fontFamily !== "Symbol") {
+                el.css("font-family", fontFamily);
+            }
+        }
+        var deco = [];
+        if (chp.underline !== Helper.UNDERLINE.NONE) {
+            deco.push("underline");
+        }
+        if (chp.strikethrough || chp.dblstrikethrough) {
+            deco.push("line-through");
+        }
+        if (deco.length > 0) {
+            el.css("text-decoration", deco.join(" "));
+        }
+        if (chp.colorindex !== 0) {
+            var color = this._doc._lookupColor(chp.colorindex);
+            if (color != null) {
+                el.css("color", Helper._colorToStr(color));
+            }
+        }
+        el.css("font-size", Math.floor(chp.fontsize / 2) + "pt");
+    };
+    RenderTextElement.prototype.finalize = function () {
+        Helper.log("[rtf] finalizing text element");
+        this.applyProps();
+        return _super.prototype.finalize.call(this);
+    };
+    return RenderTextElement;
+}(RenderElement));
+var RenderContainer = /** @class */ (function (_super) {
+    __extends$2(RenderContainer, _super);
+    function RenderContainer(doc, type, element, content) {
+        var _this = _super.call(this, doc, type, element) || this;
+        _this._content = content;
+        _this._sub = [];
+        return _this;
+    }
+    RenderContainer.prototype.getType = function () {
+        return this._type;
+    };
+    RenderContainer.prototype.getContent = function () {
+        return this._content;
+    };
+    RenderContainer.prototype.appendSub = function (container) {
+        Helper.log("[rtf] appendSub for container " + this._type);
+        this._sub.push({
+            container: container,
+        });
+    };
+    RenderContainer.prototype._finalizeSub = function (sub, parentPap) {
+        return sub.container.finalize();
+    };
+    RenderContainer.prototype.finalize = function () {
+        Helper.log("[rtf] finalizing container " + this._type);
+        if (this._sub == null) {
+            throw new RTFJSError("Container already finalized");
+        }
+        var cont = this.getContent();
+        var len = this._sub.length;
+        for (var i = 0; i < len; i++) {
+            var element = this._finalizeSub(this._sub[i], this._pap);
+            if (element != null) {
+                cont.append(element);
+            }
+        }
+        delete this._sub;
+        return this._element;
+    };
+    return RenderContainer;
+}(RenderElement));
+var RenderParagraphContainer = /** @class */ (function (_super) {
+    __extends$2(RenderParagraphContainer, _super);
+    function RenderParagraphContainer(doc) {
+        var _this = this;
+        var par = $("<div>");
+        _this = _super.call(this, doc, "par", par, par) || this;
+        return _this;
+    }
+    RenderParagraphContainer.prototype.appendSub = function (container) {
+        Helper.log("[rtf] appendSub for container " + this._type);
+        this._sub.push({
+            container: container,
+            pap: container._pap != null ? container._pap : this._pap,
+            chp: container._chp != null ? container._chp : this._chp,
+        });
+    };
+    RenderParagraphContainer.prototype.updateProps = function (pap, chp) {
+        this._pap = pap;
+        this._chp = chp;
+        if (this._sub.length > 0) {
+            var sub = this._sub[this._sub.length - 1];
+            sub.pap = pap;
+            sub.chp = chp;
+        }
+    };
+    RenderParagraphContainer.prototype.applyPap = function (el, pap, chp, ismaindiv) {
+        el = this.getElement();
+        if (ismaindiv) {
+            if (pap.spacebefore !== 0) {
+                el.css("margin-top", Helper._twipsToPt(pap.spacebefore) + "pt");
+            }
+            else {
+                el.css("margin-top", "");
+            }
+            if (pap.spaceafter !== 0) {
+                el.css("margin-bottom", Helper._twipsToPt(pap.spaceafter) + "pt");
+            }
+            else {
+                el.css("margin-bottom", "");
+            }
+            if (chp != null) {
+                el.css("min-height", Math.floor(chp.fontsize / 2) + "pt");
+            }
+        }
+        else {
+            switch (pap.justification) {
+                case Helper.JUSTIFICATION.LEFT:
+                    el.css("text-align", "left");
+                    break;
+                case Helper.JUSTIFICATION.RIGHT:
+                    el.css("text-align", "right");
+                    break;
+                case Helper.JUSTIFICATION.CENTER:
+                    el.css("text-align", "center");
+                    break;
+                case Helper.JUSTIFICATION.JUSTIFY:
+                    el.css("text-align", "justify");
+                    break;
+            }
+        }
+    };
+    RenderParagraphContainer.prototype._finalizeSub = function (sub, parentPap) {
+        var element = sub.container.finalize();
+        if (element) {
+            this.applyPap(element, sub.pap ? sub.pap : parentPap, sub.chp);
+        }
+        return element;
+    };
+    RenderParagraphContainer.prototype.finalize = function () {
+        Helper.log("[rtf] finalizing paragraph");
+        if (this._sub == null) {
+            throw new RTFJSError("Paragraph already finalized");
+        }
+        if (this._sub.length > 0) {
+            return _super.prototype.finalize.call(this);
+        }
+        delete this._sub;
+        return null;
+    };
+    return RenderParagraphContainer;
+}(RenderContainer));
+var RenderTableContainer = /** @class */ (function (_super) {
+    __extends$2(RenderTableContainer, _super);
+    function RenderTableContainer(doc) {
+        var _this = _super.call(this, doc, "table", $("<table>"), null) || this;
+        _this._rows = [];
+        _this._row = null;
+        _this._cell = null;
+        return _this;
+    }
+    RenderTableContainer.prototype.appendCell = function () {
+        Helper.log("[rtf] Table appending cell");
+        if (this._row == null) {
+            this.appendRow();
+        }
+        this._cell = {
+            element: $("<td>").appendTo(this._row.element),
+            sub: [],
+        };
+        this._row.cells.push(this._cell);
+    };
+    RenderTableContainer.prototype.appendRow = function () {
+        Helper.log("[rtf] Table appending row");
+        this._row = {
+            element: $("<tr>").appendTo(this._element),
+            cells: [],
+        };
+        this._rows.push(this._row);
+        this.appendCell();
+    };
+    RenderTableContainer.prototype.finishRow = function () {
+        Helper.log("[rtf] Table finish row");
+        this.finishCell();
+        this._row = null;
+    };
+    RenderTableContainer.prototype.finishCell = function () {
+        Helper.log("[rtf] Table finish cell");
+        var len = this._sub.length;
+        if (len > 0) {
+            if (this._row == null) {
+                this.appendRow();
+            }
+            if (this._cell == null) {
+                this.appendCell();
+            }
+            for (var i = 0; i < len; i++) {
+                this._cell.sub.push(this._sub[i]);
+            }
+            this._sub = [];
+        }
+        this._cell = null;
+    };
+    RenderTableContainer.prototype.finalize = function () {
+        Helper.log("[rtf] Table finalize");
+        if (this._sub == null) {
+            throw new RTFJSError("Table container already finalized");
+        }
+        var rlen = this._rows.length;
+        Helper.log("[rtf] Table finalize: #rows: " + rlen);
+        for (var r = 0; r < rlen; r++) {
+            var row = this._rows[r];
+            var clen = row.cells.length;
+            Helper.log("[rtf] Table finalize: row[" + r + "].#cells: " + clen);
+            for (var c = 0; c < clen; c++) {
+                var cell = row.cells[c];
+                var slen = cell.sub.length;
+                Helper.log("[rtf] Table finalize: row[" + r + "].cell[" + c + "].#subs: " + slen);
+                for (var s = 0; s < slen; s++) {
+                    var sub = cell.sub[s];
+                    var element = sub.container.finalize();
+                    if (element != null) {
+                        cell.element.append(element);
+                    }
+                }
+            }
+        }
+        delete this._sub;
+        return this._element;
+    };
+    return RenderTableContainer;
+}(RenderContainer));
+
+/*
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Thomas Bluemel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
+var __extends$3 = (undefined && undefined.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var PictGroupDestinationFactory = /** @class */ (function (_super) {
-    __extends$2(PictGroupDestinationFactory, _super);
+    __extends$3(PictGroupDestinationFactory, _super);
     function PictGroupDestinationFactory(legacy) {
         var _this = _super.call(this) || this;
         _this.class = /** @class */ (function (_super) {
-            __extends$2(class_1, _super);
+            __extends$3(class_1, _super);
             function class_1() {
                 var _this = _super.call(this, "pict-group") || this;
                 _this._legacy = legacy;
@@ -7968,7 +8277,7 @@ var PictGroupDestinationFactory = /** @class */ (function (_super) {
     return PictGroupDestinationFactory;
 }(DestinationFactory));
 var PictDestination = /** @class */ (function (_super) {
-    __extends$2(PictDestination, _super);
+    __extends$3(PictDestination, _super);
     function PictDestination(parser, inst) {
         var _this = _super.call(this, "pict") || this;
         _this._pictHandlers = {
@@ -8159,7 +8468,7 @@ var PictDestination = /** @class */ (function (_super) {
                 this.inst.addIns(function (renderer) {
                     var inst = _this._doc;
                     var elem = inst._settings.onPicture(isLegacy, function () {
-                        return doRender_1(renderer, true).getElement();
+                        return doRender_1(renderer, true);
                     });
                     if (elem != null) {
                         _this.appendElement(elem);
@@ -8180,7 +8489,7 @@ var PictDestination = /** @class */ (function (_super) {
                 var bin = blob_1 != null ? Helper._blobToBinary(blob_1) : Helper._hexToBinary(text_1);
                 if (type !== "") {
                     if (render) {
-                        return renderer.buildPicture(type, bin);
+                        return renderer.buildPicture(type, bin).getElement();
                     }
                     else {
                         renderer._doc.addIns(function (rendererForPicture) {
@@ -8190,7 +8499,7 @@ var PictDestination = /** @class */ (function (_super) {
                 }
                 else {
                     if (render) {
-                        return renderer.buildPicture("Unsupported image format", null);
+                        return renderer.buildPicture("Unsupported image format", null).getElement();
                     }
                     else {
                         renderer._doc.addIns(function (rendererForPicture) {
@@ -8203,7 +8512,7 @@ var PictDestination = /** @class */ (function (_super) {
                 this.inst.addIns(function (renderer) {
                     var inst = _this._doc;
                     var elem = inst._settings.onPicture(isLegacy, function () {
-                        return doRender_2(renderer, true).getElement();
+                        return doRender_2(renderer, true);
                     });
                     if (elem != null) {
                         _this.appendElement(elem);
@@ -8232,292 +8541,6 @@ var PictDestination = /** @class */ (function (_super) {
     };
     return PictDestination;
 }(DestinationTextBase));
-
-/*
-
-The MIT License (MIT)
-
-Copyright (c) 2015 Thomas Bluemel
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-*/
-var __extends$3 = (undefined && undefined.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var RenderElement = /** @class */ (function () {
-    function RenderElement(doc, type, element) {
-        this._doc = doc;
-        this._type = type;
-        this._element = element;
-        this._pap = null;
-        this._chp = null;
-    }
-    RenderElement.prototype.getElement = function () {
-        return this._element;
-    };
-    RenderElement.prototype.getContent = function () {
-        return this._element;
-    };
-    RenderElement.prototype.updateProps = function (pap, chp) {
-        this._pap = pap;
-        this._chp = chp;
-    };
-    RenderElement.prototype.finalize = function () {
-        Helper.log("[rtf] finalizing element of type " + this._type);
-        return this._element;
-    };
-    return RenderElement;
-}());
-var RenderTextElement = /** @class */ (function (_super) {
-    __extends$3(RenderTextElement, _super);
-    function RenderTextElement(doc, text, chp) {
-        var _this = _super.call(this, doc, "text", $("<span>").text(text)) || this;
-        _this._chp = chp;
-        return _this;
-    }
-    RenderTextElement.prototype.applyProps = function () {
-        var chp = this._chp;
-        var el = this.getElement();
-        if (chp.bold)
-            el.css("font-weight", "bold");
-        if (chp.italic)
-            el.css("font-style", "italic");
-        if (chp.hasOwnProperty("fontfamily") && this._doc._fonts[chp.fontfamily]) {
-            var fontFamily = this._doc._fonts[chp.fontfamily].fontname.replace(";", "");
-            if (fontFamily !== "Symbol")
-                el.css("font-family", fontFamily);
-        }
-        var deco = [];
-        if (chp.underline != Helper.UNDERLINE.NONE)
-            deco.push("underline");
-        if (chp.strikethrough || chp.dblstrikethrough)
-            deco.push("line-through");
-        if (deco.length > 0)
-            el.css("text-decoration", deco.join(" "));
-        if (chp.colorindex != 0) {
-            var color = this._doc._lookupColor(chp.colorindex);
-            if (color != null)
-                el.css("color", Helper._colorToStr(color));
-        }
-        el.css("font-size", Math.floor(chp.fontsize / 2) + "pt");
-    };
-    RenderTextElement.prototype.finalize = function () {
-        Helper.log("[rtf] finalizing text element");
-        this.applyProps();
-        return _super.prototype.finalize.call(this);
-    };
-    return RenderTextElement;
-}(RenderElement));
-var RenderContainer = /** @class */ (function (_super) {
-    __extends$3(RenderContainer, _super);
-    function RenderContainer(doc, type, element, content) {
-        var _this = _super.call(this, doc, type, element) || this;
-        _this._content = content;
-        _this._sub = [];
-        return _this;
-    }
-    RenderContainer.prototype.getType = function () {
-        return this._type;
-    };
-    RenderContainer.prototype.getContent = function () {
-        return this._content;
-    };
-    RenderContainer.prototype.appendSub = function (container) {
-        Helper.log("[rtf] appendSub for container " + this._type);
-        this._sub.push({
-            container: container
-        });
-    };
-    RenderContainer.prototype._finalizeSub = function (sub, parentPap) {
-        return sub.container.finalize(parentPap);
-    };
-    RenderContainer.prototype.finalize = function () {
-        Helper.log("[rtf] finalizing container " + this._type);
-        if (this._sub == null)
-            throw new RTFJSError("Container already finalized");
-        var cont = this.getContent();
-        var len = this._sub.length;
-        for (var i = 0; i < len; i++) {
-            var element = this._finalizeSub(this._sub[i], this._pap);
-            if (element != null)
-                cont.append(element);
-        }
-        delete this._sub;
-        return this._element;
-    };
-    return RenderContainer;
-}(RenderElement));
-var RenderParagraphContainer = /** @class */ (function (_super) {
-    __extends$3(RenderParagraphContainer, _super);
-    function RenderParagraphContainer(doc) {
-        var _this = this;
-        var par = $("<div>");
-        _this = _super.call(this, doc, "par", par, par) || this;
-        return _this;
-    }
-    RenderParagraphContainer.prototype.appendSub = function (container) {
-        Helper.log("[rtf] appendSub for container " + this._type);
-        this._sub.push({
-            container: container,
-            pap: container._pap != null ? container._pap : this._pap,
-            chp: container._chp != null ? container._chp : this._chp
-        });
-    };
-    RenderParagraphContainer.prototype.updateProps = function (pap, chp) {
-        this._pap = pap;
-        this._chp = chp;
-        if (this._sub.length > 0) {
-            var sub = this._sub[this._sub.length - 1];
-            sub.pap = pap;
-            sub.chp = chp;
-        }
-    };
-    RenderParagraphContainer.prototype.applyPap = function (el, pap, chp, ismaindiv) {
-        var el = this.getElement();
-        if (ismaindiv) {
-            if (pap.spacebefore != 0)
-                el.css("margin-top", Helper._twipsToPt(pap.spacebefore) + "pt");
-            else
-                el.css("margin-top", "");
-            if (pap.spaceafter != 0)
-                el.css("margin-bottom", Helper._twipsToPt(pap.spaceafter) + "pt");
-            else
-                el.css("margin-bottom", "");
-            if (chp != null)
-                el.css("min-height", Math.floor(chp.fontsize / 2) + "pt");
-        }
-        else {
-            switch (pap.justification) {
-                case Helper.JUSTIFICATION.LEFT:
-                    el.css("text-align", "left");
-                    break;
-                case Helper.JUSTIFICATION.RIGHT:
-                    el.css("text-align", "right");
-                    break;
-                case Helper.JUSTIFICATION.CENTER:
-                    el.css("text-align", "center");
-                    break;
-                case Helper.JUSTIFICATION.JUSTIFY:
-                    el.css("text-align", "justify");
-                    break;
-            }
-        }
-    };
-    RenderParagraphContainer.prototype._finalizeSub = function (sub, parentPap) {
-        var element = sub.container.finalize();
-        if (element)
-            this.applyPap(element, sub.pap ? sub.pap : parentPap, sub.chp);
-        return element;
-    };
-    RenderParagraphContainer.prototype.finalize = function () {
-        Helper.log("[rtf] finalizing paragraph");
-        if (this._sub == null)
-            throw new RTFJSError("Paragraph already finalized");
-        if (this._sub.length > 0)
-            return _super.prototype.finalize.call(this);
-        delete this._sub;
-        return null;
-    };
-    return RenderParagraphContainer;
-}(RenderContainer));
-var RenderTableContainer = /** @class */ (function (_super) {
-    __extends$3(RenderTableContainer, _super);
-    function RenderTableContainer(doc) {
-        var _this = _super.call(this, doc, "table", $("<table>"), null) || this;
-        _this._rows = [];
-        _this._row = null;
-        _this._cell = null;
-        return _this;
-    }
-    RenderTableContainer.prototype.appendCell = function () {
-        Helper.log("[rtf] Table appending cell");
-        if (this._row == null)
-            this.appendRow();
-        this._cell = {
-            element: $("<td>").appendTo(this._row.element),
-            sub: []
-        };
-        this._row.cells.push(this._cell);
-    };
-    RenderTableContainer.prototype.appendRow = function () {
-        Helper.log("[rtf] Table appending row");
-        this._row = {
-            element: $("<tr>").appendTo(this._element),
-            cells: []
-        };
-        this._rows.push(this._row);
-        this.appendCell();
-    };
-    RenderTableContainer.prototype.finishRow = function () {
-        Helper.log("[rtf] Table finish row");
-        this.finishCell();
-        this._row = null;
-    };
-    RenderTableContainer.prototype.finishCell = function () {
-        Helper.log("[rtf] Table finish cell");
-        var len = this._sub.length;
-        if (len > 0) {
-            if (this._row == null)
-                this.appendRow();
-            if (this._cell == null)
-                this.appendCell();
-            for (var i = 0; i < len; i++)
-                this._cell.sub.push(this._sub[i]);
-            this._sub = [];
-        }
-        this._cell = null;
-    };
-    RenderTableContainer.prototype.finalize = function () {
-        Helper.log("[rtf] Table finalize");
-        if (this._sub == null)
-            throw new RTFJSError("Table container already finalized");
-        var rlen = this._rows.length;
-        Helper.log("[rtf] Table finalize: #rows: " + rlen);
-        for (var r = 0; r < rlen; r++) {
-            var row = this._rows[r];
-            var clen = row.cells.length;
-            Helper.log("[rtf] Table finalize: row[" + r + "].#cells: " + clen);
-            for (var c = 0; c < clen; c++) {
-                var cell = row.cells[c];
-                var slen = cell.sub.length;
-                Helper.log("[rtf] Table finalize: row[" + r + "].cell[" + c + "].#subs: " + slen);
-                for (var s = 0; s < slen; s++) {
-                    var sub = cell.sub[s];
-                    var element = sub.container.finalize();
-                    if (element != null)
-                        cell.element.append(element);
-                }
-            }
-        }
-        delete this._sub;
-        return this._element;
-    };
-    return RenderTableContainer;
-}(RenderContainer));
 
 /*
 
@@ -9240,7 +9263,7 @@ var RtfDestination = /** @class */ (function (_super) {
         _this._propchanged = {
             chp: null,
             pap: null,
-            sep: null
+            sep: null,
         };
         _this.parser = parser;
         _this.inst = inst;
@@ -9253,8 +9276,9 @@ var RtfDestination = /** @class */ (function (_super) {
         Helper.log("[rtf] appendText()");
         this.flushProps();
         if (this.parser.state.pap.intable) {
-            if (this.parser.state.table == null)
+            if (this.parser.state.table == null) {
                 throw new RTFJSError("intbl flag without table definition");
+            }
         }
         else {
             if (this.parser.state.table != null) {
@@ -9290,8 +9314,9 @@ var RtfDestination = /** @class */ (function (_super) {
     RtfDestination.prototype._addInsHandler = function (flushprops, func) {
         var _this = this;
         return function (param) {
-            if (flushprops)
+            if (flushprops) {
                 _this.flushProps();
+            }
             _this.inst.addIns(func);
         };
     };
@@ -9314,9 +9339,10 @@ var RtfDestination = /** @class */ (function (_super) {
     };
     RtfDestination.prototype._updateFormatIns = function (ptype, props) {
         var changed = this._propchanged[ptype];
-        if (changed == null)
+        if (changed == null) {
             this._propchanged[ptype] = changed = props;
-        if (changed != props) {
+        }
+        if (changed !== props) {
             this._propchanged[ptype] = props;
             this._addFormatIns(ptype, changed);
         }
@@ -9387,33 +9413,21 @@ var RtfDestination = /** @class */ (function (_super) {
             _this._updateFormatIns(ptype, props);
         };
     };
-    RtfDestination.prototype._genericFormatSetMemberVal = function (ptype, prop, member, defaultValOrFunc) {
+    RtfDestination.prototype._genericFormatSetMemberVal = function (ptype, prop, member, defaultval) {
         var _this = this;
         return function (param) {
             var props = _this.parser.state[ptype];
             var members = props[prop];
-            var val;
-            if (typeof defaultValOrFunc === "function")
-                val = defaultValOrFunc.call(_this, param);
-            else
-                val = (param == null) ? defaultValOrFunc : param;
-            members[member] = val;
+            members[member] = (param == null) ? defaultval : param;
             Helper.log("[rtf] state." + ptype + "." + prop + "." + member + " = " + members[member].toString());
             _this._updateFormatIns(ptype, props);
         };
     };
-    RtfDestination.prototype._setTableVal = function (member, defaultValOrFunc) {
+    RtfDestination.prototype._setTableVal = function (member, defaultval) {
         var _this = this;
         return function (param) {
             if (member != null) {
-                var val;
-                if (_this.parser.state.table == null)
-                    throw new RTFJSError("Invalid table row definition");
-                if (typeof defaultValOrFunc === "function")
-                    val = defaultValOrFunc.call(_this, param);
-                else
-                    val = (param == null) ? defaultValOrFunc : param;
-                _this.parser.state.table[member] = val;
+                _this.parser.state.table[member] = (param == null) ? defaultval : param;
                 Helper.log("[rtf] state.table." + member + " = " + _this.parser.state.table[member].toString());
             }
             else {
@@ -10088,13 +10102,15 @@ var Renderer = /** @class */ (function () {
     };
     Renderer.prototype.currentContainer = function (type) {
         var len = this._curcont.length;
-        if (len == 0)
+        if (len === 0) {
             return null;
+        }
         if (type != null) {
             for (var i = len - 1; i >= 0; i--) {
                 var cont = this._curcont[i];
-                if (cont.getType() == type)
+                if (cont.getType() === type) {
                     return cont;
+                }
             }
             return null;
         }
@@ -10106,18 +10122,20 @@ var Renderer = /** @class */ (function () {
             var popped = false;
             while (this._curcont.length > 0) {
                 cont = this._curcont.pop();
-                if (cont.getType() == type) {
+                if (cont.getType() === type) {
                     popped = true;
                     break;
                 }
             }
-            if (!popped)
+            if (!popped) {
                 throw new RTFJSError("No container of type " + type + " on rendering stack");
+            }
         }
         else {
             cont = this._curcont.pop();
-            if (cont == null)
+            if (cont == null) {
                 throw new RTFJSError("No container on rendering stack");
+            }
         }
         return cont;
     };
@@ -10125,12 +10143,13 @@ var Renderer = /** @class */ (function () {
         return $("<a>").attr("href", url);
     };
     Renderer.prototype._appendToPar = function (content, newsubpar) {
-        if (newsubpar == true) {
+        if (newsubpar === true) {
             // Move everything in _curpar since the last sub-paragraph into a new one
             var par = new RenderParagraphContainer(this._doc);
             var len = this._curpar.length;
-            for (var i = this._cursubparIdx + 1; i < len; i++)
+            for (var i = this._cursubparIdx + 1; i < len; i++) {
                 par.appendSub(this._curpar[i]);
+            }
             this._curpar.splice(this._cursubparIdx + 1, len - this._cursubparIdx - 1);
             par.updateProps(this._pap, this._chp);
             this._curpar.push(par);
@@ -10138,8 +10157,9 @@ var Renderer = /** @class */ (function () {
             par = new RenderParagraphContainer(this._doc);
             this._cursubparIdx = this._curpar.push(par) - 1;
             par.updateProps(this._pap, this._chp);
-            if (content != null)
+            if (content != null) {
                 this._curpar.push(content);
+            }
         }
         else if (content != null) {
             if (this._curcont.length > 0 && this._curcont[this._curcont.length - 1] instanceof RenderTableContainer
@@ -10160,24 +10180,26 @@ var Renderer = /** @class */ (function () {
     };
     Renderer.prototype.finishPar = function () {
         this._appendToPar(null, true);
-        //if (this._pap != null && this._pap.intable) {
-        //	Helper.log("[rtf] finishPar: finishing table row");
-        //	this.finishRow();
-        //}
+        // if (this._pap != null && this._pap.intable) {
+        //     Helper.log("[rtf] finishPar: finishing table row");
+        //     this.finishRow();
+        // }
     };
     Renderer.prototype.lineBreak = function () {
         this._appendToPar(null, true);
     };
     Renderer.prototype.finishRow = function () {
         var table = this.currentContainer("table");
-        if (table == null)
+        if (table == null) {
             throw new RTFJSError("No table on rendering stack");
+        }
         table.finishRow();
     };
     Renderer.prototype.finishCell = function () {
         var table = this.currentContainer("table");
-        if (table == null)
+        if (table == null) {
             throw new RTFJSError("No table on rendering stack");
+        }
         table.finishCell();
     };
     Renderer.prototype.setChp = function (chp) {
@@ -10193,8 +10215,9 @@ var Renderer = /** @class */ (function () {
         this._appendToPar(new RenderElement(this._doc, "element", element));
     };
     Renderer.prototype.buildRenderedPicture = function (element) {
-        if (element == null)
+        if (element == null) {
             element = $("<span>").text("[failed to render image]");
+        }
         return new RenderElement(this._doc, "picture", element);
     };
     Renderer.prototype.renderedPicture = function (element) {
@@ -10204,13 +10227,14 @@ var Renderer = /** @class */ (function () {
         var element;
         if (data != null) {
             element = $("<img>", {
-                src: "data:" + mime + ";base64," + btoa(data)
+                src: "data:" + mime + ";base64," + btoa(data),
             });
         }
         else {
             var err = "image type not supported";
-            if (typeof mime === "string" && mime != "")
+            if (typeof mime === "string" && mime !== "") {
                 err = mime;
+            }
             element = $("<span>").text("[" + err + "]");
         }
         return new RenderElement(this._doc, "picture", element);
@@ -10225,8 +10249,8 @@ var Renderer = /** @class */ (function () {
         this._dom = [];
         this.initRender();
         var len = this._doc._ins.length;
-        for (var i_1 = 0; i_1 < len; i_1++) {
-            var ins = this._doc._ins[i_1];
+        for (var i = 0; i < len; i++) {
+            var ins = this._doc._ins[i];
             if (typeof ins === "string") {
                 this._appendToPar(new RenderTextElement(this._doc, ins, this._chp));
             }
@@ -10237,8 +10261,9 @@ var Renderer = /** @class */ (function () {
         len = this._curpar.length;
         for (var i = 0; i < len; i++) {
             var element = this._curpar[i].finalize();
-            if (element)
+            if (element) {
                 this._dom.push(element);
+            }
         }
         return this._dom;
     };
