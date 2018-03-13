@@ -8416,7 +8416,6 @@ var PictDestination = /** @class */ (function (_super) {
         this._blob = blob;
     };
     PictDestination.prototype.apply = function (rendering) {
-        var _this = this;
         if (rendering === void 0) { rendering = false; }
         if (this._type == null) {
             throw new RTFJSError("Picture type unknown or not specified");
@@ -8466,12 +8465,12 @@ var PictDestination = /** @class */ (function (_super) {
             };
             if (this.inst._settings.onPicture != null) {
                 this.inst.addIns(function (renderer) {
-                    var inst = _this._doc;
+                    var inst = renderer._doc;
                     var elem = inst._settings.onPicture(isLegacy, function () {
                         return doRender_1(renderer, true);
                     });
                     if (elem != null) {
-                        _this.appendElement(elem);
+                        renderer.appendElement(elem);
                     }
                 });
             }
@@ -8510,12 +8509,12 @@ var PictDestination = /** @class */ (function (_super) {
             };
             if (this.inst._settings.onPicture != null) {
                 this.inst.addIns(function (renderer) {
-                    var inst = _this._doc;
+                    var inst = renderer._doc;
                     var elem = inst._settings.onPicture(isLegacy, function () {
                         return doRender_2(renderer, true);
                     });
                     if (elem != null) {
-                        _this.appendElement(elem);
+                        renderer.appendElement(elem);
                     }
                 });
             }
@@ -9296,7 +9295,8 @@ var RtfDestination = /** @class */ (function (_super) {
         var handler = this._charFormatHandlers[keyword];
         if (handler != null) {
             Helper.log("[rtf] handling keyword: " + keyword);
-            handler.call(this, param);
+            handler(param);
+            return true;
         }
         return false;
     };

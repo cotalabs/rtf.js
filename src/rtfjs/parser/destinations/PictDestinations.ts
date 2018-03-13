@@ -248,12 +248,12 @@ export class PictDestination extends DestinationTextBase {
 
             if (this.inst._settings.onPicture != null) {
                 this.inst.addIns((renderer) => {
-                        const inst = this._doc;
+                        const inst = renderer._doc;
                         const elem = inst._settings.onPicture(isLegacy, () => {
                             return doRender(renderer, true);
                         });
                         if (elem != null) {
-                            this.appendElement(elem);
+                            renderer.appendElement(elem);
                         }
                     });
             } else {
@@ -289,12 +289,12 @@ export class PictDestination extends DestinationTextBase {
 
             if (this.inst._settings.onPicture != null) {
                 this.inst.addIns((renderer) => {
-                        const inst = this._doc;
+                        const inst = renderer._doc;
                         const elem = inst._settings.onPicture(isLegacy, () => {
                             return doRender(renderer, true);
                         });
                         if (elem != null) {
-                            this.appendElement(elem);
+                            renderer.appendElement(elem);
                         }
                     });
             } else {
