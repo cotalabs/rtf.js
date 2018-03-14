@@ -9246,7 +9246,7 @@ var RtfDestination = /** @class */ (function (_super) {
             trowd: _this._setTableVal(),
             intbl: _this._genericFormatSetNoParam("pap", "intable", true),
             row: _this._genericFormatSetNoParam("pap", "isrow", true),
-            cell: function (param) {
+            cell: function () {
                 _this._finishTableCell();
             },
         };
@@ -10075,15 +10075,7 @@ var Renderer = /** @class */ (function () {
     function Renderer(doc) {
         this._doc = doc;
         this._dom = null;
-        this.initRender();
     }
-    Renderer.prototype.initRender = function () {
-        this._chp = null;
-        this._pap = null;
-        this._curpar = [];
-        this._cursubparIdx = -1;
-        this._curcont = [];
-    };
     Renderer.prototype.pushContainer = function (container) {
         var len = this._curcont.push(container);
         if (len > 1) {
@@ -10247,7 +10239,11 @@ var Renderer = /** @class */ (function () {
             return this._dom;
         }
         this._dom = [];
-        this.initRender();
+        this._chp = null;
+        this._pap = null;
+        this._curpar = [];
+        this._cursubparIdx = -1;
+        this._curcont = [];
         var len = this._doc._ins.length;
         for (var i = 0; i < len; i++) {
             var ins = this._doc._ins[i];
