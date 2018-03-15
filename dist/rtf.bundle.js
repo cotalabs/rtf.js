@@ -7981,6 +7981,8 @@ var RenderTextElement = /** @class */ (function (_super) {
     RenderTextElement.prototype.applyProps = function () {
         var chp = this._chp;
         var el = this.getElement();
+        Helper.log("[rtf] RenderTextElement: " + el.text());
+        Helper.log("[rtf] RenderTextElement applyProps: " + JSON.stringify(chp));
         if (chp.bold) {
             el.css("font-weight", "bold");
         }
@@ -8084,40 +8086,38 @@ var RenderParagraphContainer = /** @class */ (function (_super) {
             sub.chp = chp;
         }
     };
-    RenderParagraphContainer.prototype.applyPap = function (el, pap, chp, ismaindiv) {
+    RenderParagraphContainer.prototype.applyPap = function (el, pap, chp) {
+        Helper.log("[rtf] RenderParagraphContainer applyPap: chp=" + JSON.stringify(chp)
+            + " pap=" + JSON.stringify(pap));
         el = this.getElement();
-        if (ismaindiv) {
-            if (pap.spacebefore !== 0) {
-                el.css("margin-top", Helper._twipsToPt(pap.spacebefore) + "pt");
-            }
-            else {
-                el.css("margin-top", "");
-            }
-            if (pap.spaceafter !== 0) {
-                el.css("margin-bottom", Helper._twipsToPt(pap.spaceafter) + "pt");
-            }
-            else {
-                el.css("margin-bottom", "");
-            }
-            if (chp != null) {
-                el.css("min-height", Math.floor(chp.fontsize / 2) + "pt");
-            }
+        if (pap.spacebefore !== 0) {
+            el.css("margin-top", Helper._twipsToPt(pap.spacebefore) + "pt");
         }
         else {
-            switch (pap.justification) {
-                case Helper.JUSTIFICATION.LEFT:
-                    el.css("text-align", "left");
-                    break;
-                case Helper.JUSTIFICATION.RIGHT:
-                    el.css("text-align", "right");
-                    break;
-                case Helper.JUSTIFICATION.CENTER:
-                    el.css("text-align", "center");
-                    break;
-                case Helper.JUSTIFICATION.JUSTIFY:
-                    el.css("text-align", "justify");
-                    break;
-            }
+            el.css("margin-top", "");
+        }
+        if (pap.spaceafter !== 0) {
+            el.css("margin-bottom", Helper._twipsToPt(pap.spaceafter) + "pt");
+        }
+        else {
+            el.css("margin-bottom", "");
+        }
+        if (chp != null) {
+            el.css("min-height", Math.floor(chp.fontsize / 2) + "pt");
+        }
+        switch (pap.justification) {
+            case Helper.JUSTIFICATION.LEFT:
+                el.css("text-align", "left");
+                break;
+            case Helper.JUSTIFICATION.RIGHT:
+                el.css("text-align", "right");
+                break;
+            case Helper.JUSTIFICATION.CENTER:
+                el.css("text-align", "center");
+                break;
+            case Helper.JUSTIFICATION.JUSTIFY:
+                el.css("text-align", "justify");
+                break;
         }
     };
     RenderParagraphContainer.prototype._finalizeSub = function (sub, parentPap) {
@@ -9167,17 +9167,14 @@ var RtfDestination = /** @class */ (function (_super) {
             sectd: function () {
                 Helper.log("[rtf] reset to section defaults");
                 _this.parser.state.sep = new Sep(null);
-                _this._updateFormatIns("sep", _this.parser.state.sep);
             },
             plain: function () {
                 Helper.log("[rtf] reset to character defaults");
                 _this.parser.state.chp = new Chp(null);
-                _this._updateFormatIns("chp", _this.parser.state.chp);
             },
             pard: function () {
                 Helper.log("[rtf] reset to paragraph defaults");
                 _this.parser.state.pap = new Pap(null);
-                _this._updateFormatIns("pap", _this.parser.state.pap);
             },
             b: _this._genericFormatOnOff("chp", "bold"),
             i: _this._genericFormatOnOff("chp", "italic"),
@@ -9237,10 +9234,10 @@ var RtfDestination = /** @class */ (function (_super) {
             pgnstart: _this._genericFormatSetVal("dop", "pagenumberstart", 1),
             facingp: _this._genericFormatSetNoParam("dop", "facingpages", true),
             landscape: _this._genericFormatSetNoParam("dop", "landscape", true),
-            par: _this._addInsHandler(true, function (renderer) {
+            par: _this._addInsHandler(function (renderer) {
                 renderer.finishPar();
             }),
-            line: _this._addInsHandler(true, function (renderer) {
+            line: _this._addInsHandler(function (renderer) {
                 renderer.lineBreak();
             }),
             trowd: _this._setTableVal(),
@@ -9263,6 +9260,7 @@ var RtfDestination = /** @class */ (function (_super) {
             chp: null,
             pap: null,
             sep: null,
+            dop: null,
         };
         _this.parser = parser;
         _this.inst = inst;
@@ -9272,8 +9270,7 @@ var RtfDestination = /** @class */ (function (_super) {
         this.inst.addIns(func);
     };
     RtfDestination.prototype.appendText = function (text) {
-        Helper.log("[rtf] appendText()");
-        this.flushProps();
+        // this.flushProps();
         if (this.parser.state.pap.intable) {
             if (this.parser.state.table == null) {
                 throw new RTFJSError("intbl flag without table definition");
@@ -9294,7 +9291,6 @@ var RtfDestination = /** @class */ (function (_super) {
     RtfDestination.prototype.handleKeyword = function (keyword, param) {
         var handler = this._charFormatHandlers[keyword];
         if (handler != null) {
-            Helper.log("[rtf] handling keyword: " + keyword);
             handler(param);
             return true;
         }
@@ -9311,12 +9307,9 @@ var RtfDestination = /** @class */ (function (_super) {
     RtfDestination.prototype.setMetadata = function (prop, val) {
         this._metadata[prop] = val;
     };
-    RtfDestination.prototype._addInsHandler = function (flushprops, func) {
+    RtfDestination.prototype._addInsHandler = function (func) {
         var _this = this;
         return function (param) {
-            if (flushprops) {
-                _this.flushProps();
-            }
             _this.inst.addIns(func);
         };
     };
@@ -9339,12 +9332,13 @@ var RtfDestination = /** @class */ (function (_super) {
     };
     RtfDestination.prototype._updateFormatIns = function (ptype, props) {
         var changed = this._propchanged[ptype];
+        var classes = { chp: Chp, pap: Pap, sep: Sep, dop: Dop };
         if (changed == null) {
-            this._propchanged[ptype] = changed = props;
+            this._propchanged[ptype] = new classes[ptype](props);
         }
         if (changed !== props) {
-            this._propchanged[ptype] = props;
-            this._addFormatIns(ptype, changed);
+            this._propchanged[ptype] = new classes[ptype](props);
+            this._addFormatIns(ptype, props);
         }
     };
     RtfDestination.prototype.flushProps = function (ptype) {
@@ -9359,6 +9353,7 @@ var RtfDestination = /** @class */ (function (_super) {
             this.flushProps("chp");
             this.flushProps("pap");
             this.flushProps("sep");
+            this.flushProps("dop");
         }
     };
     RtfDestination.prototype._finishTableRow = function () {
@@ -10256,6 +10251,7 @@ var Renderer = /** @class */ (function () {
         }
         len = this._curpar.length;
         for (var i = 0; i < len; i++) {
+            // At this point all render elements have been wrapped in RenderParagraphContainer objects
             var element = this._curpar[i].finalize();
             if (element) {
                 this._dom.push(element);
