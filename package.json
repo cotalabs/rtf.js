@@ -12,7 +12,8 @@
         "build": "npm run clean && npm run compile && npm run bundle",
         "generate-testcase": "node test/generate-testcase.js",
         "regenerate-testcase": "node test/regenerate-testcase.js",
-        "test": "mocha test/test-rtfjs.js"
+        "test": "mocha test/test-rtfjs.js",
+        "instrument": "npm run clean && node typewiz-instrument build src/**/*.ts src/**/**/*.ts src/**/**/**/*.ts && npm run bundle"
     },
     "repository": {
         "type": "git",
@@ -42,6 +43,9 @@
         "typescript": "2.7.2"
     },
     "dependencies": {
-        "codepage": "^1.12.0"
+        "codepage": "^1.12.0",
+        "fs-extra": "^5.0.0",
+        "glob": "^7.1.2",
+        "typewiz": "^0.6.0"
     }
 }
