@@ -31,7 +31,7 @@ if (typeof RTFJS === "undefined") {
             this.message = message;
             this.stack = (new Error()).stack;
         },
-        loggingEnabled: true,
+        loggingEnabled: false,
         log: function(message){
             if(RTFJS.loggingEnabled) {
                 console.log(message);
@@ -712,8 +712,8 @@ RTFJS.Document.prototype.parse = function(blob, renderer) {
 
     var rtfDestination = function() {
         var cls = function(name, param) {
-            if (parser.version != null)
-                throw new RTFJS.Error("Unexpected rtf destination");
+            // if (parser.version != null)
+            //     throw new RTFJS.Error("Unexpected rtf destination");
             DestinationBase.call(this, name);
 
             // This parameter should be one, but older versions of the spec allow for omission of the version number
