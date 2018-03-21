@@ -25,7 +25,7 @@ SOFTWARE.
 */
 
 if (typeof RTFJS === "undefined") {
-    (typeof window !== "undefined" ? window : this).RTFJS = {
+    RTFJS = {
         Error: function(message) {
             this.name = 'RTFJSError';
             this.message = message;
@@ -231,6 +231,7 @@ if (typeof RTFJS === "undefined") {
             return Math.floor(twips / 20 * 96 / 72);
         }
     };
+    (typeof window !== "undefined" ? window : this).RTFJS = RTFJS;
     RTFJS.Error.prototype = new Error;
 }
 
